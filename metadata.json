@@ -1,0 +1,6 @@
+{
+  "name": "Nikos Vertis Official Fan Platform",
+  "description": "Verified celebrity platform for Nikos Vertis fans to access exclusive backstage content, YTON live event table bookings, secure payment checkout, community discussion boards, and personalized interactions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
