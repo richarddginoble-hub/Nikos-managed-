@@ -1,0 +1,89 @@
+name: Restore server and switch to open-source AI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore server and use Hugging Face
+        env:
+          ORIGINAL_COMMIT: 21748d274d6373c13c5ba65630aad51e55a1e311
+        run: |
+          set -e
+          git show "$ORIGINAL_COMMIT:server.ts" > server.ts
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          server = Path('server.ts').read_text()
+          server = server.replace("import { GoogleGenAI } from '@google/genai';\n", '')
+          server = server.replace('const PORT = 3000;', 'const PORT = Number(process.env.PORT) || 3000;')
+
+          helper = r'''type OpenAICompatibleClient = {
+            models: {
+              generateContent: (args: { contents: string }) => Promise<{ text: string }>;
+            };
+          };
+
+          let aiClient: OpenAICompatibleClient | null = null;
+          function getGeminiClient(): OpenAICompatibleClient | null {
+            if (!aiClient && process.env.HF_TOKEN) {
+              aiClient = {
+                models: {
+                  async generateContent({ contents }: { contents: string }) {
+                    const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
+                      method: 'POST',
+                      headers: {
+                        Authorization: `Bearer ${process.env.HF_TOKEN}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        model: process.env.HF_MODEL || 'Qwen/Qwen2.5-7B-Instruct',
+                        messages: [{ role: 'user', content: contents }],
+                        max_tokens: 500,
+                        temperature: 0.7
+                      })
+                    });
+                    if (!response.ok) throw new Error(`Hugging Face request failed: ${response.status}`);
+                    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+                    return { text: data.choices?.[0]?.message?.content || '' };
+                  }
+                }
+              };
+            }
+            return aiClient;
+          }
+          '''
+
+          start = server.index('// AI-powered Backstage Fan Concierge')
+          chat = server.index("app.post('/api/fan-ai/chat'", start)
+          server = server[:start] + '// AI-powered Backstage Fan Concierge & Personalized Interaction\n' + helper + '\n' + server[chat:]
+          Path('server.ts').write_text(server)
+
+          package_path = Path('package.json')
+          package_json = json.loads(package_path.read_text())
+          package_json['dependencies'].pop('@google/genai', None)
+          package_path.write_text(json.dumps(package_json, indent=2) + '\n')
+          PY
+
+      - name: Commit repaired application
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add server.ts package.json
+          git diff --cached --quiet || git commit -m "Restore server and use Hugging Face open-source AI"
+          git push
