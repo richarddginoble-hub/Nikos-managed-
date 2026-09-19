@@ -64,16 +64,6 @@ function saveUsers(users: UserRecord[]) {
   window.localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
 }
 
-const defaultUsers: UserRecord[] = [
-  {
-    id: 'demo-user',
-    name: 'Demo Fan',
-    email: 'demo@nikosvertis.com',
-    password: 'demo123',
-    paid: false,
-  },
-];
-
 function makeId() {
   return `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -109,10 +99,9 @@ function App() {
     }
 
     const users = readUsers();
-    const seed = users.length ? users : defaultUsers;
 
     if (authMode === 'signup') {
-      if (seed.some((user) => user.email.toLowerCase() === trimmedEmail)) {
+      if (users.some((user) => user.email.toLowerCase() === trimmedEmail)) {
         setNotice('An account already exists for that email. Please log in instead.');
         return;
       }
@@ -125,7 +114,7 @@ function App() {
         paid: false,
       };
 
-      const updatedUsers = [...seed, newUser];
+      const updatedUsers = [...users, newUser];
       saveUsers(updatedUsers);
 
       const nextSession: Session = {
@@ -141,12 +130,12 @@ function App() {
       return;
     }
 
-    const existingUser = seed.find(
+    const existingUser = users.find(
       (user) => user.email.toLowerCase() === trimmedEmail && user.password === trimmedPassword,
     );
 
     if (!existingUser) {
-      setNotice('Invalid credentials. Try the demo account: demo@nikosvertis.com / demo123');
+      setNotice('Invalid email or password. Please create an account or use a valid login.');
       return;
     }
 
@@ -336,11 +325,6 @@ function AuthPanel({
             {authMode === 'signup' ? 'Create account' : 'Log in'}
           </button>
         </form>
-
-        <div className="mt-5 text-center text-xs text-slate-400">
-          Demo login: <span className="font-semibold text-[#f5d98a]">demo@nikosvertis.com</span> /{' '}
-          <span className="font-semibold text-[#f5d98a]">demo123</span>
-        </div>
       </div>
     </div>
   );
